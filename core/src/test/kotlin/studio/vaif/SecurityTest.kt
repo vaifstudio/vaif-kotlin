@@ -28,6 +28,22 @@ class SecurityTest {
         }
     }
 
+    // Plain HTTP would send the API key and bearer token in cleartext.
+    @Test fun `base URL requires HTTPS except for loopback hosts`() {
+        for ((url, normalized) in listOf(
+            "https://api.example.com" to "https://api.example.com/",
+            "HTTPS://api.example.com" to "https://api.example.com/",
+            "http://localhost:3000" to "http://localhost:3000/",
+            "http://127.0.0.1:3000" to "http://127.0.0.1:3000/",
+            "http://[::1]:3000" to "http://[::1]:3000/",
+        )) VaifClient(VaifConfig(baseUrl = url)).use { assertEquals(normalized, it.base.toString()) }
+        for (url in listOf("http://api.example.com", "HTTP://api.example.com", "http://localhost.example.com")) {
+            val error = assertThrows(VaifException::class.java) { VaifClient(VaifConfig(baseUrl = url)).close() }
+            assertEquals("VALIDATION_ERROR", error.code)
+            assertEquals("HTTP is allowed only on localhost, 127.0.0.1 and ::1", error.message)
+        }
+    }
+
     @Test fun `signed URL helpers reject insecure targets before returning them`() = runBlocking {
         val fake = FakeTransport()
         fakeClient(fake).use { c ->
@@ -195,7 +211,7 @@ class SecurityTest {
         } }
     }
 
-    @Test fun `realtime transport failure is an SDK error`() = runBlocking {
+    @Test fun `realtime transport failure is an SDK error`(): Unit = runBlocking {
         MockWebServer().use { server ->
             server.enqueue(MockResponse().setResponseCode(503))
             VaifClient(VaifConfig(projectId = "p", baseUrl = server.url("/").toString())).use { c ->

@@ -2,6 +2,7 @@ package studio.vaif
 
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onEach
 import kotlinx.serialization.json.*
 import okhttp3.*
 import okhttp3.mockwebserver.*
@@ -91,18 +92,17 @@ class ConformanceTest {
             }
         } finally { actors.values.forEach { it.close() } }
     }
+    /** Inserts only after the client itself has observed the channel acknowledgment, so the change cannot race the subscription. */
     private suspend fun realtimeRoundTrip(fake: StatefulApi): JsonObject {
         MockWebServer().use { server ->
-            val subscribed = CompletableDeferred<Unit>()
-            var peer: WebSocket? = null
+            val peer = CompletableDeferred<WebSocket>()
             server.enqueue(MockResponse().withWebSocketUpgrade(object : WebSocketListener() {
                 override fun onMessage(webSocket: WebSocket, text: String) {
                     val frame = obj(text)
                     if (frame.string("type") == "auth") webSocket.send("""{"type":"welcome","projectId":"project"}""")
                     if (frame.string("type") == "subscribe") {
-                        peer = webSocket
+                        peer.complete(webSocket)
                         webSocket.send("""{"type":"subscribed","channel":"table:notes","ok":true}""")
-                        subscribed.complete(Unit)
                     }
                 }
             }))
@@ -110,11 +110,17 @@ class ConformanceTest {
             try {
                 VaifClient(VaifConfig(projectId = "project", apiKey = "service-key", baseUrl = server.url("/").toString()), fake).use { c ->
                     return coroutineScope {
-                        val event = async { withTimeout(5000) { c.realtimeWithClient("notes", socketClient).changes.first() } }
-                        withTimeout(5000) { subscribed.await() }
-                        fake.onInsert = { row -> peer!!.send(jsonObject("type" to JsonPrimitive("db_change"), "table" to JsonPrimitive("notes"), "op" to JsonPrimitive("INSERT"), "record" to row).toString()) }
+                        val acknowledged = CompletableDeferred<Unit>()
+                        val event = async {
+                            c.realtimeWithClient("notes", socketClient).events
+                                .onEach { if (it.string("type") == "subscribed") acknowledged.complete(Unit) }
+                                .first { it.string("type") == "db_change" }
+                        }
+                        within("the client to receive the table:notes subscription acknowledgment") { acknowledged.await() }
+                        val socket = peer.await() // completed before the server sent the acknowledgment
+                        fake.onInsert = { row -> socket.send(jsonObject("type" to JsonPrimitive("db_change"), "table" to JsonPrimitive("notes"), "op" to JsonPrimitive("INSERT"), "record" to row).toString()) }
                         c.from("notes").insert(obj("""{"body":"realtime note"}"""))
-                        event.await()
+                        within("the client to receive the db_change event for the inserted row") { event.await() }
                     }
                 }
             } finally {
@@ -124,6 +130,9 @@ class ConformanceTest {
             }
         }
     }
+    private suspend fun <T : Any> within(what: String, block: suspend () -> T): T =
+        withTimeoutOrNull(REALTIME_STEP_TIMEOUT_MS) { block() } ?: fail("Timed out after $REALTIME_STEP_TIMEOUT_MS ms waiting for $what")
+    private companion object { const val REALTIME_STEP_TIMEOUT_MS = 10_000L }
 }
 
 private class StatefulApi : Transport {

@@ -31,9 +31,9 @@ same client configuration, avoiding a second transport dependency.
 
 ## Installation
 
-After a release is published, add Maven Central and the core dependency to your
-application's Gradle configuration. The `studio.vaif` namespace corresponds to
-vaif.studio and requires Maven Central verification before the first release.
+The `studio.vaif:vaif-kotlin` and `studio.vaif:vaif-kotlin-android` artifacts are
+not published to Maven Central yet. Once they are, add Maven Central and the core
+dependency to your application's Gradle configuration.
 
 ```kotlin
 // build.gradle.kts

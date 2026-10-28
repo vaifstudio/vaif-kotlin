@@ -69,7 +69,7 @@ class CoreTest {
         fakeClient(fake, store = store).use { assertNull(it.auth.session()) }
     }
 
-    @Test fun `OAuth uses S256 state expiry and single use`() = runBlocking {
+    @Test fun `OAuth uses S256 state expiry and single use`(): Unit = runBlocking {
         val fake = FakeTransport()
         fake.handler = { req -> if (req.url.encodedPath.endsWith("/start")) jsonResponse("""{"url":"https://provider.test/consent"}""")
             else jsonResponse("""{"accessToken":"a","refreshToken":"r","user":{"id":"u"}}""") }
@@ -130,7 +130,7 @@ class CoreTest {
         }
     }
 
-    @Test fun `API errors preserve status code request id and legacy error strings`() = runBlocking {
+    @Test fun `API errors preserve status code request id and legacy error strings`(): Unit = runBlocking {
         val fake = FakeTransport()
         fake.handler = { jsonResponse("""{"error":"expired","code":"TOKEN_INVALID","requestId":"req-1"}""", 401) }
         fakeClient(fake).use { c ->

@@ -39,9 +39,10 @@ class AndroidKeystoreTokenStorageTest {
         }
     }
     private companion object {
-        fun <T> proxy(type: Class<T>, call: (String, Array<out Any?>) -> Any?): T = type.cast(
+        // Android's API jar marks Class.cast as nullable; a proxy instance is never null.
+        fun <T : Any> proxy(type: Class<T>, call: (String, Array<out Any?>) -> Any?): T = checkNotNull(type.cast(
             Proxy.newProxyInstance(type.classLoader, arrayOf(type)) { _, method, args -> call(method.name, args ?: emptyArray()) }
-        )
+        ))
     }
     private fun key() = KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
 
@@ -80,7 +81,7 @@ class AndroidKeystoreTokenStorageTest {
         assertTrue(preferences.values.isEmpty())
     }
 
-    @Test fun `corruption and cross scope ciphertext fail closed in adapter`() = runBlocking {
+    @Test fun `corruption and cross scope ciphertext fail closed in adapter`(): Unit = runBlocking {
         val preferences = Preferences()
         val secret = key()
         val store = AndroidKeystoreTokenStorage(preferences.store) { secret }

@@ -128,7 +128,7 @@ internal fun safeUrl(url: String): HttpUrl {
     if (!Regex("^https?://", RegexOption.IGNORE_CASE).containsMatchIn(url)) validation("Expected an HTTP or HTTPS URL")
     val parsed = try { url.toHttpUrl() } catch (e: IllegalArgumentException) { validation("Invalid URL") }
     if (parsed.username.isNotEmpty() || parsed.password.isNotEmpty()) validation("URL credentials are not supported")
-    if (!parsed.isHttps && parsed.host !in setOf("localhost", "127.0.0.1", "::1")) validation("HTTP is allowed only on localhost")
+    if (!parsed.isHttps && parsed.host !in setOf("localhost", "127.0.0.1", "::1")) validation("HTTP is allowed only on localhost, 127.0.0.1 and ::1")
     return parsed
 }
 

@@ -41,7 +41,7 @@ class RealtimeTest {
         }
     }
 
-    @Test fun `server subscription error reaches collector`() = runBlocking {
+    @Test fun `server subscription error reaches collector`(): Unit = runBlocking {
         MockWebServer().use { server ->
             server.enqueue(MockResponse().withWebSocketUpgrade(object : WebSocketListener() {
                 override fun onMessage(webSocket: WebSocket, text: String) {
@@ -56,7 +56,7 @@ class RealtimeTest {
         }
     }
 
-    @Test fun `closing a subscription cancels a waiting collector`() = runBlocking {
+    @Test fun `closing a subscription cancels a waiting collector`(): Unit = runBlocking {
         MockWebServer().use { server ->
             val opened = CompletableDeferred<Unit>()
             server.enqueue(MockResponse().withWebSocketUpgrade(object : WebSocketListener() {
